@@ -1,26 +1,23 @@
-(ns toot-roboot.core
+(ns ^{:doc "Markov data function and sentence builder function from http://diegobasch.com/fun-with-markov-chains-and-clojure"
+      :author "Elle Patella"}
+  toot-roboot.core
   (:require [clojure.data.csv :refer [read-csv]]
             [clojure.walk :refer [keywordize-keys]]))
 
-(comment "Markov data function and sentence builder function from http://diegobasch.com/fun-with-markov-chains-and-clojure")
+(def patterns
+  {:urls #"(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?"
+   :retweets #"RT "
+   :main-tweets #"MT "
+   :mentions #"@" ;; FIXME Potential to clash with a reply system, can't rely on tweets starting with @ though
+   })
 
 (defn map-rows [rows]
   (for [row (rest rows)]
     (zipmap (first rows) row)))
 
-(comment "FIXME extract the patterns out of these repetitive filter
-         functions and write a non-macro way to apply them all")
-(defn not-retweet? [text]
-  (let [pattern #"RT "]
-    (not (re-find pattern text))))
-
-(defn not-url? [text]
-  (let [pattern #"(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?"]
-    (not (re-find pattern text))))
-
-(defn not-mention? [text]
-  (let [pattern #"@"]
-    (not (re-find pattern text))))
+(defn matches-patterns? [tweet]
+  (some #(re-find % tweet)
+        (vals patterns)))
 
 (defn load-tweets [file]
   (->> (slurp file)
@@ -28,10 +25,10 @@
        map-rows
        keywordize-keys
        (map :text)
-       (filter (every-pred not-retweet? not-url? not-mention?))))
+       (remove matches-patterns?)))
 
 (defn markov-data
-  "Takes a string and builds a markov chain map"
+  "Takes a sequences of tweets, creates maps of markov chains, and merges them all."
   [tweets]
   (let [maps
         (for [tweet tweets
@@ -58,12 +55,14 @@
 (def memo-markov-data
   (markov-data (load-tweets "resources/tweets.csv")))
 
-(defn serialize-markov-data
-  "Warning: super kludgly. Pprints markov data and captures on stdout then writes this serialization to 'resources/markov-structure.edn'"
-  []
-  (->> (pprint (markov-data tweet-text))
-       with-out-str
-       (spit "resources/markov-structure.edn")))
-
 (comment "Barfs out a markovalicious tweet!")
 (sentence memo-markov-data)
+
+(defn serialize-markov-data-whitespace
+  "Captures stdout on pprint to write a whitespaced serialization of markov-data"
+  []
+  (->> (load-tweets "resources/tweets.csv")
+       markov-data
+       clojure.pprint/pprint
+       with-out-str
+       (spit "resources/markov-structure.edn")))
