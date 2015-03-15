@@ -11,7 +11,9 @@
    :mentions #"@" ;; FIXME Potential to clash with a reply system, can't rely on tweets starting with @ though
    })
 
-(defn map-rows [rows]
+(defn zip
+  "Turns CSV rows into maps, using the header row for the keys"
+  [rows]
   (for [row (rest rows)]
     (zipmap (first rows) row)))
 
@@ -22,24 +24,29 @@
 (defn load-tweets [file]
   (->> (slurp file)
        read-csv
-       map-rows
+       zip
        keywordize-keys
        (map :text)
        (remove matches-patterns?)))
 
+(defn split
+  "Splits a tweet into words and labels the beginning with :start"
+  [tweet]
+  (cons :start (clojure.string/split tweet #"\s+")))
+
+;; TODO Decouple the map creation from the merging
 (defn markov-data
   "Takes a sequences of tweets, creates maps of markov chains, and merges them all."
   [tweets]
   (let [maps
         (for [tweet tweets
-              m (let [l (str tweet ".")
-                      words (cons :start (clojure.string/split l #"\s+"))]
-                  (for [p  (partition 2 1 (remove #(= "" %) words))]
-                    {(first p) [(second p)]}))]
+              m (for [p (partition 2 1 (remove #(= "" %) (split tweet)))]
+                  {(first p) [(second p)]})]
           m)]
     (apply merge-with concat maps)))
 
-(comment "TODO: Make sure these are limited to 140 characters and devise a way to blacklist words.")
+(comment "TODO: Reject tweet if it contains any words from a collection defined in config")
+(comment "TODO: Limit to 140 characters")
 (defn sentence
   "Generates a sentence at random from the markov-data map"
   [data]
