@@ -73,3 +73,27 @@
        clojure.pprint/pprint
        with-out-str
        (spit "resources/markov-structure.edn")))
+
+(comment "TODO Reimplement `markov-data` using the processes below. Taken from the 'scaling-up' article http://diegobasch.com/markov-chains-in-clojure-part-2-scaling-up")
+(comment "TODO tailor to consuming coll of tweets rather than a paragraph")
+(defn transform [words]
+  (->> words
+       (partition 2 1)
+       (reduce  (fn [acc [w next-w]]
+                  (update-in acc
+                             [w next-w]
+                             (fnil inc 0)))
+               {})))
+
+(defn markers [line]
+  (concat  [:start]
+          (clojure.string/split line #"\s+")
+          [:end]))
+
+(defn lazy-lines [file]
+  (letfn  [(helper [rdr]
+             (lazy-seq
+               (if-let [line  (.readLine rdr)]
+                 (concat  (markers line)  (helper rdr))
+                 (do  (.close rdr) nil))))]
+    (helper  (clojure.java.io/reader file))))
