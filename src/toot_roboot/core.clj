@@ -21,7 +21,10 @@
   (some #(re-find % tweet)
         (vals patterns)))
 
-(defn load-tweets [file]
+(defn load-tweets
+  "Reads in the tweet archive, zips the rows into maps, keywordizes the maps, creates a seq of the tweet's text, and then returns tweets that aren't removed by user-defined patterns.
+  The map to text conversion is wasteful in this context, would be more efficient to just seq the text column. Should probably replace zip and save for other uses."
+  [file]
   (->> (slurp file)
        read-csv
        zip
