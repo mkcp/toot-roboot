@@ -1,15 +1,15 @@
 (ns toot-roboot.core
-  (:require [twitter.oauth :refer :all]
+  (:require [clojure.data.csv :refer [read-csv]]
+            [twitter.oauth :refer :all]
             [twitter.callbacks :refer :all]
             [twitter.callbacks.handlers :refer :all]
             [twitter.api.restful :refer :all]))
 
 
-
 (defn load-credentials
   "FIXME: Needs error handling."
   []
-  (:fake-creds (read (slurp "resources/creds.edn"))))
+  (:fake-creds (read-string (slurp "resources/creds.edn"))))
 
 (defn make-credentials
   [{:keys [consumer-key consumer-secret app-key app-secret]}]
@@ -27,9 +27,9 @@
               :main-tweets #"MT "
               :mentions #"@"}})
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;
 ;; Archive loading
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;
 (defn rows->maps
   "Turns CSV rows into maps, using the header row for the keys"
   [rows]
@@ -43,8 +43,9 @@
 (defn load-tweets
   "Converts the tweet archive file into a sequence of tweet strings."
   [file]
-  (->> (slurp file)
-       clojure.data.csv/read-csv
+  (->> file
+       slurp
+       read-csv
        rows->maps
        clojure.walk/keywordize-keys
        (map :text)
@@ -55,7 +56,9 @@
   [tweet]
   (cons :start (clojure.string/split tweet #"\s+")))
 
-(defn make-maps [tweets]
+(defn make-maps
+  "FIXME: Holy shit you need to refactor this monstrosity."
+  [tweets]
   (for [tweet tweets
         m (for [p (partition 2 1 (remove #(= "" %)
                                          (split tweet)))]
@@ -67,7 +70,6 @@
   [tweets]
   (apply merge-with concat (make-maps tweets)))
 
-
 ;; Save tweet data in a variable
 ;; FIXME Replace this with something implicit as part of the creation
 (def markov-tree
@@ -75,9 +77,9 @@
       load-tweets
       build))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;; Tweet
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;
+;; Tweet
+;;;;;;;;
 (defn generate-sentence
   "Begins at nodes marked :start and ends with a period."
   [data]
@@ -90,23 +92,26 @@
         (clojure.string/join " " nacc)
         (recur nws nacc)))))
 
-(defn make-tweet []
+(defn make-tweet
+  "This is not an effective way to limit tweets to 140 chars.
+  Consider redesigning the way the markov tree is structured."
+  []
   (let [tweet (generate-sentence markov-tree)]
     (if (< 140 (count tweet))
       (recur)
       tweet)))
 
-;; DEBUG
-#_(make-tweet)
+#_(generate-sentence markov-tree)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;
 ;; Helpers
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;
 ;; TODO Serialize with options rather than being so specific
-(defn serialize-markov-data-with-whitespace
+(defn serialize-markov-tree-with-whitespace
   "Writes a prettified serialization of the markov tree to `resources/markov-data.edn`"
   []
-  (->> (:archive-location config)
+  (->> config
+       :archive-location
        load-tweets
        build
        clojure.pprint/pprint
