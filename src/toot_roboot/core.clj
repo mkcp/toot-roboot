@@ -1,5 +1,6 @@
 (ns toot-roboot.core
   (:require [clojure.data.csv :refer [read-csv]]
+            [clojure.string :refer [join split]]
             [clojure.walk :refer [keywordize-keys]]
             [twitter.oauth :refer :all]
             [twitter.callbacks :refer :all]
@@ -52,17 +53,25 @@
        (map :text)
        (remove matches-patterns?)))
 
-(defn split
+(defn mark-and-split
   "Splits a tweet into words and labels the beginning with :start"
   [tweet]
-  (cons :start (clojure.string/split tweet #"\s+")))
+  (cons :start (split tweet #"\s+")))
+
+(defn make-maps-cleaner
+  "FIXME: Transducer candidate."
+  [tweets]
+  (let [splits (map mark-and-split tweets)]))
+
+(defn partition-tweet [tweet]
+  (partition 2 1 (remove #(= "" %)
+                         (mark-and-split tweet))))
 
 (defn make-maps
   "FIXME: Holy shit you need to refactor this monstrosity."
   [tweets]
   (for [tweet tweets
-        m (for [p (partition 2 1 (remove #(= "" %)
-                                         (split tweet)))]
+        m (for [p (partition-tweet tweet)]
             {(first p) [(second p)]})]
     m))
 
@@ -90,17 +99,8 @@
           nws (data w)
           nacc (concat acc [w])]
       (if (= \. (last w))
-        (clojure.string/join " " nacc)
+        (join " " nacc)
         (recur nws nacc)))))
-
-(defn make-tweet
-  "This is not an effective way to limit tweets to 140 chars.
-  Consider redesigning the way the markov tree is structured."
-  []
-  (let [tweet (generate-sentence markov-tree)]
-    (if (< 140 (count tweet))
-      (recur)
-      tweet)))
 
 #_(generate-sentence markov-tree)
 
