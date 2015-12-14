@@ -1,17 +1,36 @@
-(ns ^{:doc "Markov data function and sentence builder function from http://diegobasch.com/fun-with-markov-chains-and-clojure"
-      :author "Elle Patella"}
-  toot-roboot.core
-  (:require [clojure.data.csv :refer [read-csv]]
-            [clojure.walk :refer [keywordize-keys]]))
+(ns toot-roboot.core
+  (:require [twitter.oauth :refer :all]
+            [twitter.callbacks :refer :all]
+            [twitter.callbacks.handlers :refer :all]
+            [twitter.api.restful :refer :all]))
 
-(def patterns
-  {:urls #"(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?"
-   :retweets #"RT "
-   :main-tweets #"MT "
-   :mentions #"@" ;; FIXME Potential to clash with a reply system, can't rely on tweets starting with @ though
-   })
 
-(defn zip
+
+(defn load-credentials
+  "FIXME: Needs error handling."
+  []
+  (:fake-creds (read (slurp "resources/creds.edn"))))
+
+(defn make-credentials
+  [{:keys [consumer-key consumer-secret app-key app-secret]}]
+  (make-oauth-creds consumer-key
+                    consumer-secret
+                    app-key
+                    app-secret))
+
+(def my-creds (make-credentials (load-credentials)))
+
+(def config
+  {:archive-location "resources/tweets.csv"
+   :patterns {:urls #"(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?"
+              :retweets #"RT "
+              :main-tweets #"MT "
+              :mentions #"@"}})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Archive loading
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rows->maps
   "Turns CSV rows into maps, using the header row for the keys"
   [rows]
   (for [row (rest rows)]
@@ -19,16 +38,15 @@
 
 (defn matches-patterns? [tweet]
   (some #(re-find % tweet)
-        (vals patterns)))
+        (vals (:patterns config))))
 
 (defn load-tweets
-  "Reads in the tweet archive, zips the rows into maps, keywordizes the maps, creates a seq of the tweet's text, and then returns tweets that aren't removed by user-defined patterns.
-  The map to text conversion is wasteful in this context, would be more efficient to just seq the text column. Should probably replace zip and save for other uses."
+  "Converts the tweet archive file into a sequence of tweet strings."
   [file]
   (->> (slurp file)
-       read-csv
-       zip
-       keywordize-keys
+       clojure.data.csv/read-csv
+       rows->maps
+       clojure.walk/keywordize-keys
        (map :text)
        (remove matches-patterns?)))
 
@@ -37,21 +55,31 @@
   [tweet]
   (cons :start (clojure.string/split tweet #"\s+")))
 
-;; TODO Decouple the map creation from the merging
-(defn markov-data
+(defn make-maps [tweets]
+  (for [tweet tweets
+        m (for [p (partition 2 1 (remove #(= "" %)
+                                         (split tweet)))]
+            {(first p) [(second p)]})]
+    m))
+
+(defn build
   "Takes a sequences of tweets, creates maps of markov chains, and merges them all."
   [tweets]
-  (let [maps
-        (for [tweet tweets
-              m (for [p (partition 2 1 (remove #(= "" %) (split tweet)))]
-                  {(first p) [(second p)]})]
-          m)]
-    (apply merge-with concat maps)))
+  (apply merge-with concat (make-maps tweets)))
 
-(comment "TODO: Reject tweet if it contains any words from a collection defined in config")
-(comment "TODO: Limit to 140 characters")
-(defn sentence
-  "Generates a sentence at random from the markov-data map"
+
+;; Save tweet data in a variable
+;; FIXME Replace this with something implicit as part of the creation
+(def markov-tree
+  (-> (:archive-location config)
+      load-tweets
+      build))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;; Tweet
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn generate-sentence
+  "Begins at nodes marked :start and ends with a period."
   [data]
   (loop [ws (data :start)
          acc []]
@@ -62,20 +90,29 @@
         (clojure.string/join " " nacc)
         (recur nws nacc)))))
 
-(def memo-markov-data
-  (markov-data (load-tweets "resources/tweets.csv")))
+(defn make-tweet []
+  (let [tweet (generate-sentence markov-tree)]
+    (if (< 140 (count tweet))
+      (recur)
+      tweet)))
 
-(comment "Barfs out a markovalicious tweet!")
-(sentence memo-markov-data)
+;; DEBUG
+#_(make-tweet)
 
-(defn serialize-markov-data-whitespace
-  "Captures stdout on pprint to write a whitespaced serialization of markov-data"
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Helpers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; TODO Serialize with options rather than being so specific
+(defn serialize-markov-data-with-whitespace
+  "Writes a prettified serialization of the markov tree to `resources/markov-data.edn`"
   []
-  (->> (load-tweets "resources/tweets.csv")
-       markov-data
+  (->> (:archive-location config)
+       load-tweets
+       build
        clojure.pprint/pprint
        with-out-str
-       (spit "resources/markov-structure.edn")))
+       (spit "test/test_files/markov-data.edn")))
 
-(comment "TODO Reimplement `markov-data` using the processes in markov-scalable.clj Taken from the 'scaling-up' article http://diegobasch.com/markov-chains-in-clojure-part-2-scaling-up")
-(comment "TODO tailor to consuming coll of tweets rather than a paragraph")
+#_(defn -main
+    "Accepts tweet-frequency in milliseconds to schedule tweeting."
+    [tweet-frequency])

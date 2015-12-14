@@ -1,0 +1,10 @@
+
+{:real-creds {:consumer-key "vRUUHLhfJ9uWKw8wl8n9jxyoZ"
+              :consumer-secret "YXRyQUyhyvsloC0tJhUa1ywkP6BqyjexVhcfFooYRf8LoA77fV"
+              :app-key "2924911633-A4jXryu7lbco4JYzLnucnihDHVcBMvHyhM0VsVn"
+              :app-secret "LVQq26Z1c7xOVwFlb2if9YgTVwnHxukserIER8UVmzXQp"}
+
+ :fake-creds {:consumer-key "qw8wl9n3jxyoZvRUUlLhfJ9uW"
+              :consumer-secret "QJsexyhPfFooYRf8LoA77fVYXRyQUyhyvsloC0tJhUa1ywkP6B"
+              :app-key "9242391163-zLnucnihDqhaBMvAyhM0VsVnA4jXryu7lbco4JY"
+              :app-secret "YgTVwnHxukserIER8UvMLQlPAVQq26Z1c7xOVwFlb2if9"}}
