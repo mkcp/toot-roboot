@@ -3,4 +3,5 @@
            :main-tweets #"MT "
            :mentions #"@" ;; FIXME Potential to clash with a reply system, can't rely on tweets starting with @ though.
            }
- :exclude-words ["fag" "cunt" "nigger" "rape"]}
+ :exclude []
+ :use-blacklist true}
