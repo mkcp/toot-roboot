@@ -1,5 +1,6 @@
 (ns toot-roboot.core
   (:require [clojure.data.csv :refer [read-csv]]
+            [clojure.walk :refer [keywordize-keys]]
             [twitter.oauth :refer :all]
             [twitter.callbacks :refer :all]
             [twitter.callbacks.handlers :refer :all]
@@ -47,7 +48,7 @@
        slurp
        read-csv
        rows->maps
-       clojure.walk/keywordize-keys
+       keywordize-keys
        (map :text)
        (remove matches-patterns?)))
 
